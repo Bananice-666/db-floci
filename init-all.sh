@@ -12,6 +12,8 @@ AWS_REGION="us-east-1"
 FLOCI_ENDPOINT="http://localhost:4566"
 MAX_RETRIES=30
 RETRY_DELAY=2
+DB_HOST=""
+DB_PORT=""
 
 # Configurar AWS CLI para Floci
 export AWS_ENDPOINT_URL=$FLOCI_ENDPOINT
@@ -63,7 +65,32 @@ else
   echo "✓ Instancia creada"
 fi
 
-sleep 3
+# Esperar a que Floci registre el endpoint y obtener host/puerto reales
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  DB_HOST=$(aws rds describe-db-instances \
+    --db-instance-identifier $DB_INSTANCE_ID \
+    --query 'DBInstances[0].Endpoint.Address' \
+    --output text 2>/dev/null || true)
+  DB_PORT=$(aws rds describe-db-instances \
+    --db-instance-identifier $DB_INSTANCE_ID \
+    --query 'DBInstances[0].Endpoint.Port' \
+    --output text 2>/dev/null || true)
+
+  if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "None" ] && [ -n "$DB_PORT" ] && [ "$DB_PORT" != "None" ]; then
+    echo "✓ Endpoint listo: $DB_HOST:$DB_PORT"
+    break
+  fi
+
+  RETRY_COUNT=$((RETRY_COUNT + 1))
+  echo "  Esperando endpoint de la BD... intento $RETRY_COUNT/$MAX_RETRIES"
+  sleep $RETRY_DELAY
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+  echo "✗ No se pudo obtener el endpoint de la BD"
+  exit 1
+fi
 
 # 3. CONECTAR E INICIALIZAR TABLAS
 echo ""
@@ -72,7 +99,8 @@ echo "[3/3] Inicializando tablas..."
 # Esperar a que MySQL esté listo
 RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  if mysql -h localhost \
+  if mysql -h "$DB_HOST" \
+    -P "$DB_PORT" \
     -u $MASTER_USERNAME \
     -p$MASTER_PASSWORD \
     $DB_NAME -e "SELECT 1" >/dev/null 2>&1; then
@@ -90,7 +118,8 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
 fi
 
 # Ejecutar el SQL
-mysql -h localhost \
+mysql -h "$DB_HOST" \
+  -P "$DB_PORT" \
   -u $MASTER_USERNAME \
   -p$MASTER_PASSWORD \
   $DB_NAME < init-db.sql
@@ -103,8 +132,8 @@ echo "✓ LISTO! Base de datos inicializada"
 echo "============================================"
 echo ""
 echo "Detalles de conexión:"
-echo "  Host: localhost"
-echo "  Puerto: 3306"
+echo "  Host: $DB_HOST"
+echo "  Puerto: $DB_PORT"
 echo "  Usuario: $MASTER_USERNAME"
 echo "  Contraseña: $MASTER_PASSWORD"
 echo "  Base de datos: $DB_NAME"
