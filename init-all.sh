@@ -88,8 +88,53 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-  echo "✗ No se pudo obtener el endpoint de la BD"
-  exit 1
+  echo "⚠ Instancia existente sin endpoint; recreando $DB_INSTANCE_ID"
+  aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_ID >/dev/null 2>&1 || true
+
+  RETRY_COUNT=0
+  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_ID >/dev/null 2>&1; then
+      break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    sleep $RETRY_DELAY
+  done
+
+  aws rds create-db-instance \
+    --db-instance-identifier $DB_INSTANCE_ID \
+    --db-instance-class db.t3.micro \
+    --engine mysql \
+    --master-username $MASTER_USERNAME \
+    --master-user-password $MASTER_PASSWORD \
+    --allocated-storage 20 \
+    --db-name $DB_NAME \
+    >/dev/null 2>&1
+
+  RETRY_COUNT=0
+  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    DB_HOST=$(aws rds describe-db-instances \
+      --db-instance-identifier $DB_INSTANCE_ID \
+      --query 'DBInstances[0].Endpoint.Address' \
+      --output text 2>/dev/null || true)
+    DB_PORT=$(aws rds describe-db-instances \
+      --db-instance-identifier $DB_INSTANCE_ID \
+      --query 'DBInstances[0].Endpoint.Port' \
+      --output text 2>/dev/null || true)
+
+    if [ -n "$DB_HOST" ] && [ "$DB_HOST" != "None" ] && [ -n "$DB_PORT" ] && [ "$DB_PORT" != "None" ]; then
+      echo "✓ Endpoint listo: $DB_HOST:$DB_PORT"
+      break
+    fi
+
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo "  Esperando endpoint de la BD recreada... intento $RETRY_COUNT/$MAX_RETRIES"
+    sleep $RETRY_DELAY
+  done
+
+  if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo "✗ No se pudo obtener el endpoint de la BD"
+    exit 1
+  fi
 fi
 
 # 3. CONECTAR E INICIALIZAR TABLAS
