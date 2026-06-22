@@ -145,17 +145,17 @@ echo "[3/3] Inicializando tablas..."
 RETRY_COUNT=0
 LAST_MYSQL_ERROR=""
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  MYSQL_PWD="$MASTER_PASSWORD" mysql -h "$DB_HOST" \
+  if MYSQL_PWD="$MASTER_PASSWORD" mysql -h "$DB_HOST" \
     -P "$DB_PORT" \
     -u $MASTER_USERNAME \
-    $DB_NAME -e "SELECT 1" >/dev/null 2>&1; then
+    "$DB_NAME" -e "SELECT 1" >/dev/null 2>&1; then
     echo "✓ MySQL está listo"
     break
   fi
   LAST_MYSQL_ERROR=$(MYSQL_PWD="$MASTER_PASSWORD" mysql -h "$DB_HOST" \
     -P "$DB_PORT" \
     -u $MASTER_USERNAME \
-    $DB_NAME -e "SELECT 1" 2>&1 || true)
+    "$DB_NAME" -e "SELECT 1" 2>&1 || true)
   RETRY_COUNT=$((RETRY_COUNT + 1))
   echo "  Intento $RETRY_COUNT/$MAX_RETRIES... esperando $RETRY_DELAY segundos"
   echo "  mysql: $LAST_MYSQL_ERROR"
@@ -172,7 +172,7 @@ fi
 MYSQL_PWD="$MASTER_PASSWORD" mysql -h "$DB_HOST" \
   -P "$DB_PORT" \
   -u $MASTER_USERNAME \
-  $DB_NAME < init-db.sql
+  "$DB_NAME" < init-db.sql
 
 echo "✓ Tablas creadas"
 
