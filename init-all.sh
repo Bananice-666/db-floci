@@ -148,7 +148,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   if MYSQL_PWD="$MASTER_PASSWORD" mysql -h "$DB_HOST" \
     -P "$DB_PORT" \
     -u $MASTER_USERNAME \
-    --ssl-mode=DISABLED \
+    --skip-ssl \
     "$DB_NAME" -e "SELECT 1" >/dev/null 2>&1; then
     echo "✓ MySQL está listo"
     break
@@ -156,7 +156,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
   LAST_MYSQL_ERROR=$(MYSQL_PWD="$MASTER_PASSWORD" mysql -h "$DB_HOST" \
     -P "$DB_PORT" \
     -u $MASTER_USERNAME \
-    --ssl-mode=DISABLED \
+    --skip-ssl \
     "$DB_NAME" -e "SELECT 1" 2>&1 || true)
   RETRY_COUNT=$((RETRY_COUNT + 1))
   echo "  Intento $RETRY_COUNT/$MAX_RETRIES... esperando $RETRY_DELAY segundos"
@@ -174,7 +174,7 @@ fi
 MYSQL_PWD="$MASTER_PASSWORD" mysql -h "$DB_HOST" \
   -P "$DB_PORT" \
   -u $MASTER_USERNAME \
-  --ssl-mode=DISABLED \
+  --skip-ssl \
   "$DB_NAME" < init-db.sql
 
 echo "✓ Tablas creadas"
