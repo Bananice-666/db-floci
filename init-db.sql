@@ -8,6 +8,6 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Inserta datos de prueba
-INSERT INTO users (name, email) VALUES 
+INSERT IGNORE INTO users (name, email) VALUES 
 ('John Doe', 'john@example.com'),
 ('Jane Smith', 'jane@example.com');
